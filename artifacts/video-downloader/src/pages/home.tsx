@@ -43,6 +43,8 @@ export default function Home() {
   const [videoResult, setVideoResult] = useState<Video | null>(null);
   const [formatsResult, setFormatsResult] = useState<VideoFormatsResponse | null>(null);
   const [postUrl, setPostUrl] = useState<string>("");
+  const [retryNotice, setRetryNotice] = useState<string | null>(null);
+  const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -57,6 +59,8 @@ export default function Home() {
   function onSubmit(values: z.infer<typeof formSchema>) {
     setVideoResult(null);
     setFormatsResult(null);
+    setRetryNotice(null);
+    setSelectedLabel(null);
     setPostUrl(values.url);
     listVideoFormats.mutate(
       { data: { url: values.url } },
@@ -68,20 +72,54 @@ export default function Home() {
     );
   }
 
-  function chooseFormat(format: VideoFormat | null) {
+  // Attempts to download the given quality. If that specific quality fails
+  // (e.g. a stale/broken CDN URL for that format), automatically falls back
+  // to the next-best quality in the list, then finally to the server's
+  // best-effort default (no formatId), so users rarely have to manually
+  // retry themselves.
+  function attemptDownload(remainingFormats: VideoFormat[], failedLabels: string[]) {
+    const [next, ...rest] = remainingFormats;
+    const formatId = next?.formatId;
+    setSelectedLabel(next?.label ?? "best available");
+    setRetryNotice(
+      failedLabels.length > 0
+        ? `${failedLabels[failedLabels.length - 1]} didn't work, trying ${next?.label ?? "best available"} instead...`
+        : null
+    );
+
     createVideoDownload.mutate(
-      { data: { url: postUrl, formatId: format?.formatId } },
+      { data: { url: postUrl, formatId } },
       {
         onSuccess: (data) => {
           setVideoResult(data);
+          setRetryNotice(null);
+        },
+        onError: () => {
+          if (rest.length > 0) {
+            attemptDownload(rest, [...failedLabels, next?.label ?? "that quality"]);
+          } else {
+            setRetryNotice(null);
+          }
         },
       }
     );
   }
 
+  function chooseFormat(format: VideoFormat | null) {
+    const formats = formatsResult?.formats ?? [];
+    // Build the fallback chain: chosen quality first, then every other
+    // quality (best to worst) as automatic retries if it fails.
+    const chain = format
+      ? [format, ...formats.filter((f) => f.formatId !== format.formatId)]
+      : formats;
+    attemptDownload(chain.length > 0 ? chain : [format as VideoFormat], []);
+  }
+
   const resetForm = () => {
     setVideoResult(null);
     setFormatsResult(null);
+    setRetryNotice(null);
+    setSelectedLabel(null);
     setPostUrl("");
     form.reset();
     listVideoFormats.reset();
@@ -278,7 +316,9 @@ export default function Home() {
               </div>
               <div className="text-center space-y-2">
                 <h3 className="text-xl font-bold text-foreground">Extracting Magic</h3>
-                <p className="text-muted-foreground font-medium">Fetching your selected quality...</p>
+                <p className="text-muted-foreground font-medium" data-testid="text-download-status">
+                  {retryNotice ?? `Fetching ${selectedLabel ?? "your selected quality"}...`}
+                </p>
               </div>
             </div>
           )}
