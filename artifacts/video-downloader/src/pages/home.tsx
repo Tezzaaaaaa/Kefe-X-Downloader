@@ -88,10 +88,15 @@ export default function Home() {
     createVideoDownload.reset();
   };
 
+  // The API server is a separate service mounted at the "/api" path prefix
+  // (see artifacts/api-server/.replit-artifact/artifact.toml). It is NOT the
+  // same as this frontend's own BASE_URL, which is "/". Using BASE_URL here
+  // would point the download link at this SPA's own root, which falls back
+  // to index.html for unmatched routes -- resulting in an HTML file being
+  // downloaded instead of the actual video.
   const getDownloadHref = (downloadUrl: string) => {
-    const base = import.meta.env.BASE_URL;
-    const cleanBase = base === '/' ? '' : base.replace(/\/$/, "");
-    return `${cleanBase}${downloadUrl.startsWith('/') ? downloadUrl : '/' + downloadUrl}`;
+    const path = downloadUrl.startsWith('/') ? downloadUrl : `/${downloadUrl}`;
+    return `/api${path}`;
   };
 
   const isFormatsError = listVideoFormats.isError;
