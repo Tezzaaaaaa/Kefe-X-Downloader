@@ -23,6 +23,7 @@ import type {
   ErrorResponse,
   HealthStatus,
   Video,
+  VideoFormatsResponse,
   VideoRequest
 } from './api.schemas';
 
@@ -131,6 +132,77 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
+export const getListVideoFormatsUrl = () => {
+
+
+
+
+  return `/api/videos/formats`
+}
+
+/**
+ * Accepts a social media post URL and returns the available video quality/format options without downloading the video, so the user can pick one before committing to a download.
+ * @summary List available video quality options for a post URL
+ */
+export const listVideoFormats = async (videoRequest: VideoRequest, options?: RequestInit): Promise<VideoFormatsResponse> => {
+
+  return customFetch<VideoFormatsResponse>(getListVideoFormatsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(videoRequest)
+  }
+);}
+
+
+
+
+export const getListVideoFormatsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof listVideoFormats>>, TError,{data: BodyType<VideoRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof listVideoFormats>>, TError,{data: BodyType<VideoRequest>}, TContext> => {
+
+const mutationKey = ['listVideoFormats'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof listVideoFormats>>, {data: BodyType<VideoRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  listVideoFormats(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ListVideoFormatsMutationResult = NonNullable<Awaited<ReturnType<typeof listVideoFormats>>>
+    export type ListVideoFormatsMutationBody = BodyType<VideoRequest>
+    export type ListVideoFormatsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary List available video quality options for a post URL
+ */
+export const useListVideoFormats = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof listVideoFormats>>, TError,{data: BodyType<VideoRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof listVideoFormats>>,
+        TError,
+        {data: BodyType<VideoRequest>},
+        TContext
+      > => {
+      return useMutation(getListVideoFormatsMutationOptions(options));
+    }
+
 export const getCreateVideoDownloadUrl = () => {
 
 
@@ -140,7 +212,7 @@ export const getCreateVideoDownloadUrl = () => {
 }
 
 /**
- * Accepts a social media post URL, downloads the video server-side, and returns metadata plus a link to fetch the downloaded file.
+ * Accepts a social media post URL, downloads the video server-side, and returns metadata plus a link to fetch the downloaded file. Optionally accepts a formatId (from listVideoFormats) to select a specific quality; otherwise the best available quality is used.
  * @summary Resolve and download a video from a post URL
  */
 export const createVideoDownload = async (videoRequest: VideoRequest, options?: RequestInit): Promise<Video> => {

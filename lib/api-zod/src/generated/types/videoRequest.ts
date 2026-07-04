@@ -9,4 +9,9 @@
 export interface VideoRequest {
   /** The post URL to extract a video from */
   url: string;
+  /**
+     * Optional format identifier (from listVideoFormats) selecting a specific quality. If omitted, the best available quality is used.
+     * @nullable
+     */
+  formatId?: string | null;
 }

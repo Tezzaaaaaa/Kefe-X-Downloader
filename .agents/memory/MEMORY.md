@@ -1,0 +1,2 @@
+- [yt-dlp via uvx](ytdlp-uvx-pythonpath.md) — always run `uvx yt-dlp` (not the Nix binary) with `PYTHONPATH` stripped, or extraction silently uses a stale version.
+- [X/Twitter video extraction fallback chain](x-video-extraction-fallback.md) — yt-dlp fails on some sensitive/NSFW posts; fxtwitter API is the fallback and also provides per-quality format URLs.

@@ -18,11 +18,37 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * Accepts a social media post URL, downloads the video server-side, and returns metadata plus a link to fetch the downloaded file.
+ * Accepts a social media post URL and returns the available video quality/format options without downloading the video, so the user can pick one before committing to a download.
+ * @summary List available video quality options for a post URL
+ */
+export const ListVideoFormatsBody = zod.object({
+  "url": zod.string().describe('The post URL to extract a video from'),
+  "formatId": zod.string().nullish().describe('Optional format identifier (from listVideoFormats) selecting a specific quality. If omitted, the best available quality is used.\n')
+})
+
+export const ListVideoFormatsResponse = zod.object({
+  "sourceUrl": zod.string(),
+  "title": zod.string().nullish(),
+  "thumbnailUrl": zod.string().nullish(),
+  "durationSeconds": zod.number().nullish(),
+  "formats": zod.array(zod.object({
+  "formatId": zod.string(),
+  "label": zod.string().describe('Human-readable quality label, e.g. \"1080p\" or \"Audio only\"'),
+  "height": zod.number().nullish(),
+  "width": zod.number().nullish(),
+  "ext": zod.string().nullish(),
+  "fileSizeBytes": zod.number().nullish()
+}))
+})
+
+
+/**
+ * Accepts a social media post URL, downloads the video server-side, and returns metadata plus a link to fetch the downloaded file. Optionally accepts a formatId (from listVideoFormats) to select a specific quality; otherwise the best available quality is used.
  * @summary Resolve and download a video from a post URL
  */
 export const CreateVideoDownloadBody = zod.object({
-  "url": zod.string().describe('The post URL to extract a video from')
+  "url": zod.string().describe('The post URL to extract a video from'),
+  "formatId": zod.string().nullish().describe('Optional format identifier (from listVideoFormats) selecting a specific quality. If omitted, the best available quality is used.\n')
 })
 
 export const CreateVideoDownloadResponse = zod.object({

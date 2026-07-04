@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { Download, Link as LinkIcon, Loader2, PlayCircle, AlertCircle, RefreshCw, XCircle } from "lucide-react";
-import { useCreateVideoDownload } from "@workspace/api-client-react";
-import type { Video } from "@workspace/api-client-react/src/generated/api.schemas";
+import { Download, Link as LinkIcon, Loader2, PlayCircle, AlertCircle, RefreshCw, XCircle, Gauge } from "lucide-react";
+import { useCreateVideoDownload, useListVideoFormats } from "@workspace/api-client-react";
+import type { Video, VideoFormat, VideoFormatsResponse } from "@workspace/api-client-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -41,6 +41,8 @@ function formatDuration(seconds: number) {
 
 export default function Home() {
   const [videoResult, setVideoResult] = useState<Video | null>(null);
+  const [formatsResult, setFormatsResult] = useState<VideoFormatsResponse | null>(null);
+  const [postUrl, setPostUrl] = useState<string>("");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -49,12 +51,26 @@ export default function Home() {
     },
   });
 
+  const listVideoFormats = useListVideoFormats();
   const createVideoDownload = useCreateVideoDownload();
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     setVideoResult(null);
-    createVideoDownload.mutate(
+    setFormatsResult(null);
+    setPostUrl(values.url);
+    listVideoFormats.mutate(
       { data: { url: values.url } },
+      {
+        onSuccess: (data) => {
+          setFormatsResult(data);
+        },
+      }
+    );
+  }
+
+  function chooseFormat(format: VideoFormat | null) {
+    createVideoDownload.mutate(
+      { data: { url: postUrl, formatId: format?.formatId } },
       {
         onSuccess: (data) => {
           setVideoResult(data);
@@ -65,7 +81,10 @@ export default function Home() {
 
   const resetForm = () => {
     setVideoResult(null);
+    setFormatsResult(null);
+    setPostUrl("");
     form.reset();
+    listVideoFormats.reset();
     createVideoDownload.reset();
   };
 
@@ -75,8 +94,14 @@ export default function Home() {
     return `${cleanBase}${downloadUrl.startsWith('/') ? downloadUrl : '/' + downloadUrl}`;
   };
 
-  const isError = createVideoDownload.isError;
-  const errorMessage = (createVideoDownload.error as any)?.error || "Failed to extract video. It might be private, deleted, or unsupported.";
+  const isFormatsError = listVideoFormats.isError;
+  const formatsErrorMessage = (listVideoFormats.error as any)?.error || "Failed to extract video. It might be private, deleted, or unsupported.";
+
+  const isDownloadError = createVideoDownload.isError;
+  const downloadErrorMessage = (createVideoDownload.error as any)?.error || "Failed to download that quality. Please try another one.";
+
+  const showForm = !videoResult && !formatsResult && !listVideoFormats.isPending;
+  const showFormatPicker = !videoResult && formatsResult && !createVideoDownload.isPending;
 
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden bg-background">
@@ -103,7 +128,7 @@ export default function Home() {
         <div className="bg-card shadow-xl shadow-black/5 rounded-3xl border border-border p-6 sm:p-8">
           
           {/* Form State */}
-          {!videoResult && !createVideoDownload.isPending && (
+          {showForm && (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 <FormField
@@ -129,12 +154,12 @@ export default function Home() {
                   )}
                 />
 
-                {isError && (
+                {isFormatsError && (
                   <Alert variant="destructive" className="rounded-xl border-2" data-testid="alert-error">
                     <AlertCircle className="h-5 w-5" />
                     <AlertTitle className="text-base font-bold">Oops!</AlertTitle>
                     <AlertDescription className="text-sm font-medium mt-1">
-                      {errorMessage}
+                      {formatsErrorMessage}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -151,7 +176,95 @@ export default function Home() {
             </Form>
           )}
 
-          {/* Loading State */}
+          {/* Checking Formats Loading State */}
+          {listVideoFormats.isPending && (
+            <div className="py-12 flex flex-col items-center justify-center space-y-6 animate-in fade-in zoom-in duration-300">
+              <div className="relative">
+                <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
+                <Loader2 size={48} className="text-primary animate-spin relative z-10" />
+              </div>
+              <div className="text-center space-y-2">
+                <h3 className="text-xl font-bold text-foreground">Checking Post</h3>
+                <p className="text-muted-foreground font-medium">Looking up available video qualities...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Quality Picker State */}
+          {showFormatPicker && (
+            <div className="space-y-5 animate-in slide-in-from-bottom-4 fade-in duration-500" data-testid="format-picker-container">
+              {formatsResult.thumbnailUrl && (
+                <div className="aspect-video bg-black rounded-2xl overflow-hidden relative shadow-inner">
+                  <img
+                    src={formatsResult.thumbnailUrl}
+                    alt="Video thumbnail"
+                    className="w-full h-full object-cover opacity-80"
+                    data-testid="img-format-thumbnail"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 right-0 p-4 space-y-1 pointer-events-none">
+                    <h3 className="text-white font-bold text-base line-clamp-2 leading-tight" data-testid="text-format-title">
+                      {formatsResult.title || "Untitled Post"}
+                    </h3>
+                    {formatsResult.durationSeconds != null && (
+                      <span className="inline-block bg-white/20 px-2 py-1 rounded-md backdrop-blur-sm text-white/80 text-xs font-medium">
+                        {formatDuration(formatsResult.durationSeconds)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-foreground font-bold">
+                  <Gauge size={18} />
+                  <span>Choose a quality</span>
+                </div>
+
+                {isDownloadError && (
+                  <Alert variant="destructive" className="rounded-xl border-2" data-testid="alert-download-error">
+                    <AlertCircle className="h-5 w-5" />
+                    <AlertTitle className="text-base font-bold">Oops!</AlertTitle>
+                    <AlertDescription className="text-sm font-medium mt-1">
+                      {downloadErrorMessage}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {formatsResult.formats.map((format) => (
+                    <button
+                      key={format.formatId}
+                      type="button"
+                      onClick={() => chooseFormat(format)}
+                      className="flex flex-col items-center justify-center gap-1 h-20 rounded-2xl border-2 border-border bg-secondary/30 hover:border-primary hover:bg-primary/10 active:scale-[0.97] transition-all font-bold text-foreground"
+                      data-testid={`button-format-${format.formatId}`}
+                    >
+                      <span className="text-lg">{format.label}</span>
+                      {format.fileSizeBytes != null && (
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {formatBytes(format.fileSizeBytes)}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={resetForm}
+                className="w-full h-14 text-base font-bold rounded-2xl active:scale-[0.98] transition-transform"
+                data-testid="button-reset-from-formats"
+              >
+                <RefreshCw size={18} className="mr-2" />
+                Try another link
+              </Button>
+            </div>
+          )}
+
+          {/* Downloading Selected Quality Loading State */}
           {createVideoDownload.isPending && (
             <div className="py-12 flex flex-col items-center justify-center space-y-6 animate-in fade-in zoom-in duration-300">
               <div className="relative">
@@ -160,7 +273,7 @@ export default function Home() {
               </div>
               <div className="text-center space-y-2">
                 <h3 className="text-xl font-bold text-foreground">Extracting Magic</h3>
-                <p className="text-muted-foreground font-medium">Fetching highest quality video...</p>
+                <p className="text-muted-foreground font-medium">Fetching your selected quality...</p>
               </div>
             </div>
           )}

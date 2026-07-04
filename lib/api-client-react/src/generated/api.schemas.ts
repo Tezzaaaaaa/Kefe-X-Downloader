@@ -12,6 +12,36 @@ export interface HealthStatus {
 export interface VideoRequest {
   /** The post URL to extract a video from */
   url: string;
+  /**
+     * Optional format identifier (from listVideoFormats) selecting a specific quality. If omitted, the best available quality is used.
+     * @nullable
+     */
+  formatId?: string | null;
+}
+
+export interface VideoFormat {
+  formatId: string;
+  /** Human-readable quality label, e.g. "1080p" or "Audio only" */
+  label: string;
+  /** @nullable */
+  height?: number | null;
+  /** @nullable */
+  width?: number | null;
+  /** @nullable */
+  ext?: string | null;
+  /** @nullable */
+  fileSizeBytes?: number | null;
+}
+
+export interface VideoFormatsResponse {
+  sourceUrl: string;
+  /** @nullable */
+  title?: string | null;
+  /** @nullable */
+  thumbnailUrl?: string | null;
+  /** @nullable */
+  durationSeconds?: number | null;
+  formats: VideoFormat[];
 }
 
 export interface Video {

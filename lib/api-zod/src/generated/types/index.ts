@@ -9,4 +9,6 @@
 export * from './errorResponse';
 export * from './healthStatus';
 export * from './video';
+export * from './videoFormat';
+export * from './videoFormatsResponse';
 export * from './videoRequest';

@@ -76,6 +76,18 @@ export function validatePostUrl(rawUrl: string): URL {
   return parsed;
 }
 
+interface YtDlpFormat {
+  format_id?: string;
+  ext?: string;
+  height?: number;
+  width?: number;
+  vcodec?: string;
+  acodec?: string;
+  filesize?: number;
+  filesize_approx?: number;
+  format_note?: string;
+}
+
 interface YtDlpInfo {
   id?: string;
   title?: string;
@@ -84,16 +96,96 @@ interface YtDlpInfo {
   filesize?: number;
   filesize_approx?: number;
   ext?: string;
+  formats?: YtDlpFormat[];
   requested_downloads?: Array<{
     filepath?: string;
     filesize?: number;
   }>;
 }
 
+export interface VideoFormatOption {
+  formatId: string;
+  label: string;
+  height: number | null;
+  width: number | null;
+  ext: string | null;
+  fileSizeBytes: number | null;
+}
+
+export interface VideoFormatsResult {
+  sourceUrl: string;
+  title: string | null;
+  thumbnailUrl: string | null;
+  durationSeconds: number | null;
+  formats: VideoFormatOption[];
+}
+
+const FXURL_PREFIX = "fxurl:";
+const ALLOWED_MEDIA_HOSTS = new Set(["video.twimg.com", "pbs.twimg.com"]);
+
+async function runYtDlpJson(sourceUrl: string): Promise<YtDlpInfo> {
+  const { PYTHONPATH: _unusedPythonPath, ...envWithoutPythonPath } = process.env;
+  const result = await execFileAsync(
+    "uvx",
+    ["yt-dlp", "--no-playlist", "--no-warnings", "--skip-download", "-J", sourceUrl],
+    {
+      timeout: 60_000,
+      maxBuffer: 10 * 1024 * 1024,
+      env: envWithoutPythonPath,
+    },
+  );
+  return JSON.parse(result.stdout) as YtDlpInfo;
+}
+
+async function listFormatsWithYtDlp(sourceUrl: string): Promise<VideoFormatsResult> {
+  const info = await runYtDlpJson(sourceUrl);
+
+  const videoFormats = (info.formats ?? []).filter(
+    (f) => f.vcodec && f.vcodec !== "none" && f.format_id,
+  );
+
+  const byHeight = new Map<string, YtDlpFormat>();
+  for (const f of videoFormats) {
+    const key = `${f.height ?? "unknown"}-${f.ext ?? ""}`;
+    const existing = byHeight.get(key);
+    const size = f.filesize ?? f.filesize_approx ?? 0;
+    const existingSize = existing ? (existing.filesize ?? existing.filesize_approx ?? 0) : -1;
+    if (!existing || size > existingSize) {
+      byHeight.set(key, f);
+    }
+  }
+
+  const formats: VideoFormatOption[] = Array.from(byHeight.values())
+    .sort((a, b) => (b.height ?? 0) - (a.height ?? 0))
+    .map((f) => ({
+      formatId: f.format_id as string,
+      label: f.height ? `${f.height}p` : (f.format_note ?? "Video"),
+      height: f.height ?? null,
+      width: f.width ?? null,
+      ext: f.ext ?? null,
+      fileSizeBytes: f.filesize ?? f.filesize_approx ?? null,
+    }));
+
+  if (formats.length === 0) {
+    throw new ExtractionFailedError(
+      "Couldn't find a downloadable video on that post. It may be private, deleted, or contain no video.",
+    );
+  }
+
+  return {
+    sourceUrl,
+    title: info.title ?? null,
+    thumbnailUrl: info.thumbnail ?? null,
+    durationSeconds: typeof info.duration === "number" ? info.duration : null,
+    formats,
+  };
+}
+
 async function downloadWithYtDlp(
   sourceUrl: string,
   id: string,
   outputTemplate: string,
+  formatId?: string,
 ): Promise<{ filePath: string; fileName: string; title: string | null; thumbnailUrl: string | null; durationSeconds: number | null }> {
   // Use `uvx yt-dlp` instead of the system `yt-dlp` binary: the Nix-provided
   // yt-dlp package is version-pinned and lags behind upstream, and X/Twitter
@@ -103,6 +195,11 @@ async function downloadWithYtDlp(
   // ambient env injects the old Nix yt-dlp's site-packages dir, which
   // otherwise shadows the newer version inside uvx's isolated venv.
   const { PYTHONPATH: _unusedPythonPath, ...envWithoutPythonPath } = process.env;
+  // If a specific formatId is requested, fall back to it alone if bestaudio
+  // merge isn't available for that format (e.g. it's already progressive).
+  const formatSelector = formatId
+    ? `${formatId}+bestaudio/${formatId}/best`
+    : "mp4/bestvideo*+bestaudio/best";
   const result = await execFileAsync(
     "uvx",
     [
@@ -110,7 +207,7 @@ async function downloadWithYtDlp(
       "--no-playlist",
       "--no-warnings",
       "-f",
-      "mp4/bestvideo*+bestaudio/best",
+      formatSelector,
       "--merge-output-format",
       "mp4",
       "-o",
@@ -155,17 +252,28 @@ async function downloadWithYtDlp(
   };
 }
 
+interface FxTwitterMediaVariant {
+  url?: string;
+  bitrate?: number;
+  container?: string;
+}
+
+interface FxTwitterMediaItem {
+  url?: string;
+  thumbnail_url?: string;
+  duration?: number;
+  type?: string;
+  width?: number;
+  height?: number;
+  formats?: FxTwitterMediaVariant[];
+}
+
 interface FxTwitterResponse {
   code?: number;
   tweet?: {
     text?: string;
     media?: {
-      all?: Array<{
-        url?: string;
-        thumbnail_url?: string;
-        duration?: number;
-        type?: string;
-      }>;
+      all?: FxTwitterMediaItem[];
     };
   };
 }
@@ -178,14 +286,7 @@ function extractStatusPath(parsed: URL): string | null {
   return `${match[1]}/status/${match[2]}`;
 }
 
-// Fallback for posts yt-dlp's Twitter extractor can't handle (e.g. some
-// sensitive/NSFW-flagged posts fail yt-dlp's guest-token GraphQL flow even
-// though the video is public). fxtwitter mirrors X's own oEmbed-like data
-// and resolves a direct playable video URL we can download ourselves.
-async function downloadViaFxTwitterFallback(
-  parsed: URL,
-  id: string,
-): Promise<{ filePath: string; fileName: string; title: string | null; thumbnailUrl: string | null; durationSeconds: number | null }> {
+async function fetchFxTwitterData(parsed: URL): Promise<FxTwitterResponse> {
   const statusPath = extractStatusPath(parsed);
   if (!statusPath) {
     throw new ExtractionFailedError(
@@ -193,7 +294,6 @@ async function downloadViaFxTwitterFallback(
     );
   }
 
-  let data: FxTwitterResponse;
   try {
     const response = await fetch(`https://api.fxtwitter.com/${statusPath}`, {
       signal: AbortSignal.timeout(15_000),
@@ -201,27 +301,102 @@ async function downloadViaFxTwitterFallback(
     if (!response.ok) {
       throw new Error(`fxtwitter responded with ${response.status}`);
     }
-    data = (await response.json()) as FxTwitterResponse;
+    return (await response.json()) as FxTwitterResponse;
   } catch (err) {
-    logger.warn({ err, sourceUrl: parsed.toString() }, "fxtwitter fallback lookup failed");
+    logger.warn({ err, sourceUrl: parsed.toString() }, "fxtwitter lookup failed");
+    throw new ExtractionFailedError(
+      "Couldn't find a downloadable video on that post. It may be private, deleted, or contain no video.",
+    );
+  }
+}
+
+function parseHeightFromUrl(url: string): number | null {
+  const match = url.match(/\/(\d+)x(\d+)\//);
+  return match ? Number(match[2]) : null;
+}
+
+function assertAllowedMediaUrl(rawUrl: string): void {
+  let host: string;
+  try {
+    host = new URL(rawUrl).hostname.toLowerCase();
+  } catch {
+    throw new ExtractionFailedError("The video file could not be saved.");
+  }
+  if (!ALLOWED_MEDIA_HOSTS.has(host)) {
+    throw new ExtractionFailedError("The video file could not be saved.");
+  }
+}
+
+// Fallback for posts yt-dlp's Twitter extractor can't handle (e.g. some
+// sensitive/NSFW-flagged posts fail yt-dlp's guest-token GraphQL flow even
+// though the video is public). fxtwitter mirrors X's own oEmbed-like data
+// and resolves direct playable video URLs (per quality) we can download
+// ourselves with ffmpeg.
+async function listFormatsWithFxTwitter(parsed: URL): Promise<VideoFormatsResult> {
+  const data = await fetchFxTwitterData(parsed);
+  const media = data.tweet?.media?.all?.find((item) => item.type === "video" && item.url);
+  if (!media) {
     throw new ExtractionFailedError(
       "Couldn't find a downloadable video on that post. It may be private, deleted, or contain no video.",
     );
   }
 
-  const media = data.tweet?.media?.all?.find((item) => item.type === "video" && item.url);
-  if (!media?.url) {
+  const mp4Variants = (media.formats ?? []).filter(
+    (v) => v.container === "mp4" && v.url,
+  );
+
+  const formats: VideoFormatOption[] = mp4Variants
+    .map((v) => {
+      const height = parseHeightFromUrl(v.url as string);
+      return {
+        formatId: `${FXURL_PREFIX}${encodeURIComponent(v.url as string)}`,
+        label: height ? `${height}p` : "Video",
+        height,
+        width: null,
+        ext: "mp4",
+        fileSizeBytes: null,
+      };
+    })
+    .sort((a, b) => (b.height ?? 0) - (a.height ?? 0));
+
+  if (formats.length === 0 && media.url) {
+    formats.push({
+      formatId: `${FXURL_PREFIX}${encodeURIComponent(media.url)}`,
+      label: media.height ? `${media.height}p` : "Video",
+      height: media.height ?? null,
+      width: media.width ?? null,
+      ext: "mp4",
+      fileSizeBytes: null,
+    });
+  }
+
+  if (formats.length === 0) {
     throw new ExtractionFailedError(
       "Couldn't find a downloadable video on that post. It may be private, deleted, or contain no video.",
     );
   }
+
+  return {
+    sourceUrl: parsed.toString(),
+    title: data.tweet?.text ?? null,
+    thumbnailUrl: media.thumbnail_url ?? null,
+    durationSeconds: typeof media.duration === "number" ? media.duration : null,
+    formats,
+  };
+}
+
+async function downloadFxUrl(
+  mediaUrl: string,
+  id: string,
+): Promise<{ filePath: string; fileName: string }> {
+  assertAllowedMediaUrl(mediaUrl);
 
   const filePath = path.join(videosDir, `${id}.mp4`);
   const { PYTHONPATH: _unusedPythonPath, ...envWithoutPythonPath } = process.env;
   try {
     await execFileAsync(
       "ffmpeg",
-      ["-y", "-i", media.url, "-c", "copy", filePath],
+      ["-y", "-i", mediaUrl, "-c", "copy", filePath],
       {
         timeout: 120_000,
         maxBuffer: 10 * 1024 * 1024,
@@ -229,7 +404,7 @@ async function downloadViaFxTwitterFallback(
       },
     );
   } catch (err) {
-    logger.warn({ err, sourceUrl: parsed.toString() }, "ffmpeg failed to download fxtwitter video URL");
+    logger.warn({ err, mediaUrl }, "ffmpeg failed to download video URL");
     throw new ExtractionFailedError("The video file could not be saved.");
   }
 
@@ -237,27 +412,67 @@ async function downloadViaFxTwitterFallback(
     throw new ExtractionFailedError("The video file could not be saved.");
   }
 
+  return { filePath, fileName: path.basename(filePath) };
+}
+
+// Downloads the video at the default/best quality, trying yt-dlp first and
+// falling back to fxtwitter if yt-dlp's extractor can't handle the post.
+async function downloadViaFxTwitterFallback(
+  parsed: URL,
+  id: string,
+): Promise<{ filePath: string; fileName: string; title: string | null; thumbnailUrl: string | null; durationSeconds: number | null }> {
+  const data = await fetchFxTwitterData(parsed);
+  const media = data.tweet?.media?.all?.find((item) => item.type === "video" && item.url);
+  if (!media?.url) {
+    throw new ExtractionFailedError(
+      "Couldn't find a downloadable video on that post. It may be private, deleted, or contain no video.",
+    );
+  }
+
+  const { filePath, fileName } = await downloadFxUrl(media.url, id);
+
   return {
     filePath,
-    fileName: path.basename(filePath),
+    fileName,
     title: data.tweet?.text ?? null,
     thumbnailUrl: media.thumbnail_url ?? null,
     durationSeconds: typeof media.duration === "number" ? media.duration : null,
   };
 }
 
-export async function downloadVideoFromPost(sourceUrl: string): Promise<StoredVideo> {
+export async function listVideoFormats(sourceUrl: string): Promise<VideoFormatsResult> {
+  const parsed = validatePostUrl(sourceUrl);
+
+  try {
+    return await listFormatsWithYtDlp(parsed.toString());
+  } catch (err) {
+    logger.warn({ err, sourceUrl }, "yt-dlp failed to list formats, trying fxtwitter fallback");
+    return await listFormatsWithFxTwitter(parsed);
+  }
+}
+
+export async function downloadVideoFromPost(
+  sourceUrl: string,
+  formatId?: string | null,
+): Promise<StoredVideo> {
   const parsed = validatePostUrl(sourceUrl);
 
   const id = randomUUID();
   const outputTemplate = path.join(videosDir, `${id}.%(ext)s`);
 
   let result: { filePath: string; fileName: string; title: string | null; thumbnailUrl: string | null; durationSeconds: number | null };
-  try {
-    result = await downloadWithYtDlp(parsed.toString(), id, outputTemplate);
-  } catch (err) {
-    logger.warn({ err, sourceUrl }, "yt-dlp failed to extract video, trying fxtwitter fallback");
-    result = await downloadViaFxTwitterFallback(parsed, id);
+
+  if (formatId && formatId.startsWith(FXURL_PREFIX)) {
+    const mediaUrl = decodeURIComponent(formatId.slice(FXURL_PREFIX.length));
+    const { filePath, fileName } = await downloadFxUrl(mediaUrl, id);
+    result = { filePath, fileName, title: null, thumbnailUrl: null, durationSeconds: null };
+  } else {
+    try {
+      result = await downloadWithYtDlp(parsed.toString(), id, outputTemplate, formatId ?? undefined);
+    } catch (err) {
+      logger.warn({ err, sourceUrl }, "yt-dlp failed to extract video, trying fxtwitter fallback");
+      result = await downloadViaFxTwitterFallback(parsed, id);
+    }
   }
 
   const stat = fs.statSync(result.filePath);

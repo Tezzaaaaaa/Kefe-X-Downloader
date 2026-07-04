@@ -26,6 +26,40 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /videos/formats:
+    post:
+      operationId: listVideoFormats
+      tags: [videos]
+      summary: List available video quality options for a post URL
+      description: >
+        Accepts a social media post URL and returns the available video
+        quality/format options without downloading the video, so the user
+        can pick one before committing to a download.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VideoRequest"
+      responses:
+        "200":
+          description: Available formats for the post
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VideoFormatsResponse"
+        "400":
+          description: Invalid or unsupported URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Could not find any video formats for the given URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /videos:
     post:
       operationId: createVideoDownload
@@ -34,6 +68,8 @@ paths:
       description: >
         Accepts a social media post URL, downloads the video server-side,
         and returns metadata plus a link to fetch the downloaded file.
+        Optionally accepts a formatId (from listVideoFormats) to select a
+        specific quality; otherwise the best available quality is used.
       requestBody:
         required: true
         content:
@@ -104,6 +140,48 @@ components:
         url:
           type: string
           description: The post URL to extract a video from
+        formatId:
+          type: ["string", "null"]
+          description: >
+            Optional format identifier (from listVideoFormats) selecting a
+            specific quality. If omitted, the best available quality is used.
+    VideoFormat:
+      type: object
+      required:
+        - formatId
+        - label
+      properties:
+        formatId:
+          type: string
+        label:
+          type: string
+          description: Human-readable quality label, e.g. "1080p" or "Audio only"
+        height:
+          type: ["integer", "null"]
+        width:
+          type: ["integer", "null"]
+        ext:
+          type: ["string", "null"]
+        fileSizeBytes:
+          type: ["integer", "null"]
+    VideoFormatsResponse:
+      type: object
+      required:
+        - sourceUrl
+        - formats
+      properties:
+        sourceUrl:
+          type: string
+        title:
+          type: ["string", "null"]
+        thumbnailUrl:
+          type: ["string", "null"]
+        durationSeconds:
+          type: ["number", "null"]
+        formats:
+          type: array
+          items:
+            $ref: "#/components/schemas/VideoFormat"
     Video:
       type: object
       required:

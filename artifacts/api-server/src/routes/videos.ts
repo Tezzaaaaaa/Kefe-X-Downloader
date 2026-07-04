@@ -1,17 +1,54 @@
 import { Router, type IRouter } from "express";
 import {
+  ListVideoFormatsBody,
+  ListVideoFormatsResponse,
   CreateVideoDownloadBody,
   CreateVideoDownloadResponse,
   GetVideoFileParams,
 } from "@workspace/api-zod";
 import {
   downloadVideoFromPost,
+  listVideoFormats,
   videoStore,
   InvalidUrlError,
   ExtractionFailedError,
 } from "../lib/videoDownloader";
 
 const router: IRouter = Router();
+
+router.post("/videos/formats", async (req, res): Promise<void> => {
+  const parsed = ListVideoFormatsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  try {
+    const result = await listVideoFormats(parsed.data.url);
+    res.status(200).json(
+      ListVideoFormatsResponse.parse({
+        sourceUrl: result.sourceUrl,
+        title: result.title,
+        thumbnailUrl: result.thumbnailUrl,
+        durationSeconds: result.durationSeconds,
+        formats: result.formats,
+      }),
+    );
+  } catch (err) {
+    if (err instanceof InvalidUrlError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    if (err instanceof ExtractionFailedError) {
+      res.status(422).json({ error: err.message });
+      return;
+    }
+    req.log.error({ err }, "Unexpected error listing video formats");
+    res.status(422).json({
+      error: "Something went wrong while checking that post. Please try again.",
+    });
+  }
+});
 
 router.post("/videos", async (req, res): Promise<void> => {
   const parsed = CreateVideoDownloadBody.safeParse(req.body);
@@ -21,7 +58,7 @@ router.post("/videos", async (req, res): Promise<void> => {
   }
 
   try {
-    const video = await downloadVideoFromPost(parsed.data.url);
+    const video = await downloadVideoFromPost(parsed.data.url, parsed.data.formatId);
     res.status(201).json(
       CreateVideoDownloadResponse.parse({
         id: video.id,
