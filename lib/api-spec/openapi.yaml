@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: videos
+    description: Video download operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,67 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /videos:
+    post:
+      operationId: createVideoDownload
+      tags: [videos]
+      summary: Resolve and download a video from a post URL
+      description: >
+        Accepts a social media post URL, downloads the video server-side,
+        and returns metadata plus a link to fetch the downloaded file.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VideoRequest"
+      responses:
+        "201":
+          description: Video downloaded and ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Video"
+        "400":
+          description: Invalid or unsupported URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: Could not extract a video from the given URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /videos/{id}/file:
+    get:
+      operationId: getVideoFile
+      tags: [videos]
+      summary: Download the fetched video file
+      description: >
+        Streams the previously downloaded video file. Intended to be used
+        directly as a link/anchor href, not via a fetch call.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The video file
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Video not found or file expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +96,44 @@ components:
           type: string
       required:
         - status
-
+    VideoRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          description: The post URL to extract a video from
+    Video:
+      type: object
+      required:
+        - id
+        - sourceUrl
+        - downloadUrl
+        - createdAt
+      properties:
+        id:
+          type: string
+        sourceUrl:
+          type: string
+        title:
+          type: ["string", "null"]
+        thumbnailUrl:
+          type: ["string", "null"]
+        durationSeconds:
+          type: ["number", "null"]
+        fileSizeBytes:
+          type: ["integer", "null"]
+        downloadUrl:
+          type: string
+          description: Relative path (under the API base) to fetch the video file
+        createdAt:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string

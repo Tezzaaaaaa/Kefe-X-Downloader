@@ -8,6 +8,9 @@ out-tsc
 .expo
 .expo-shared
 
+# downloaded video files
+artifacts/api-server/data/videos
+
 # dependencies
 node_modules
 

@@ -5,14 +5,6 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-export interface HealthStatus {
-  status: string;
-}
-
-export interface VideoRequest {
-  /** The post URL to extract a video from */
-  url: string;
-}
 
 export interface Video {
   id: string;
@@ -27,10 +19,5 @@ export interface Video {
   fileSizeBytes?: number | null;
   /** Relative path (under the API base) to fetch the video file */
   downloadUrl: string;
-  createdAt: string;
+  createdAt: Date;
 }
-
-export interface ErrorResponse {
-  error: string;
-}
-

@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export * from './errorResponse';
-export * from './healthStatus';
-export * from './video';
-export * from './videoRequest';
+export interface VideoRequest {
+  /** The post URL to extract a video from */
+  url: string;
+}
