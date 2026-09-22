@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "2ZiYwCfalxNa7Jphhjjz1"
+uri = "file://yt-dlp-supported-sites.txt"
+type = "text"
+title = "yt-dlp supported sites"
+description = "Complete current list of 1,865 unique yt-dlp extractor names."
+logical_id = "8f12bef3-ef66-45a9-a9bc-62442e647c09"
+content_hash = "sha256:329f54b93ddb20dd698ecfff7872e298560a5eba4f8968a69d827a5781b74be2"
+size = 24571
+mtime_ms = 1790054453916
+storage_uri = "gcs://replit-rams-assets-janeway/rams/assets/repl:89bde44c-44d4-4d5b-b33a-d03f2925c18b/8f12bef3-ef66-45a9-a9bc-62442e647c09/e2aef5f2-ef16-4cf5-8239-ce28963da7a7"
+storage_version_token = "1790054459530443"
+content_type = "text/plain"
