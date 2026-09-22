@@ -1,4 +1,6 @@
 import { Router, type IRouter } from "express";
+import fs from "node:fs";
+import path from "node:path";
 import {
   ListVideoFormatsBody,
   ListVideoFormatsResponse,
@@ -100,7 +102,67 @@ router.get("/videos/:id/file", (req, res): void => {
     return;
   }
 
-  res.download(video.filePath, video.fileName);
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(video.filePath);
+  } catch {
+    videoStore.delete(params.data.id);
+    res.status(404).json({ error: "Video not found or it has expired." });
+    return;
+  }
+
+  const totalSize = stat.size;
+  const range = req.headers.range;
+  const encodedFileName = encodeURIComponent(video.fileName);
+  res.setHeader("Content-Type", "application/octet-stream");
+  res.setHeader("Content-Disposition", `attachment; filename="${path.basename(video.fileName)}"; filename*=UTF-8''${encodedFileName}`);
+  res.setHeader("Accept-Ranges", "bytes");
+  res.setHeader("Cache-Control", "no-store");
+
+  if (!range) {
+    res.setHeader("Content-Length", totalSize);
+    fs.createReadStream(video.filePath).pipe(res);
+    return;
+  }
+
+  const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+  if (!match) {
+    res.status(416).setHeader("Content-Range", `bytes */${totalSize}`).end();
+    return;
+  }
+
+  const requestedStart = match[1] ? Number(match[1]) : null;
+  const requestedEnd = match[2] ? Number(match[2]) : null;
+  let start: number;
+  let end: number;
+
+  if (requestedStart === null && requestedEnd !== null) {
+    const suffixLength = requestedEnd;
+    if (suffixLength <= 0) {
+      res.status(416).setHeader("Content-Range", `bytes */${totalSize}`).end();
+      return;
+    }
+    start = Math.max(totalSize - suffixLength, 0);
+    end = totalSize - 1;
+  } else {
+    start = requestedStart ?? 0;
+    end = requestedEnd ?? totalSize - 1;
+  }
+
+  if (
+    start < 0 ||
+    start >= totalSize ||
+    end < start ||
+    end >= totalSize
+  ) {
+    res.status(416).setHeader("Content-Range", `bytes */${totalSize}`).end();
+    return;
+  }
+
+  res.status(206);
+  res.setHeader("Content-Range", `bytes ${start}-${end}/${totalSize}`);
+  res.setHeader("Content-Length", end - start + 1);
+  fs.createReadStream(video.filePath, { start, end }).pipe(res);
 });
 
 export default router;

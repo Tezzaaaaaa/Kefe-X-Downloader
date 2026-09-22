@@ -366,7 +366,6 @@ export default function Home() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <a 
                   href={getDownloadHref(videoResult.downloadUrl)} 
-                  download
                   className="flex-1 inline-flex items-center justify-center gap-2 h-16 bg-primary text-primary-foreground text-xl font-bold rounded-2xl shadow-lg shadow-primary/20 hover:bg-primary/90 active:scale-[0.98] transition-all"
                   data-testid="link-download"
                 >
