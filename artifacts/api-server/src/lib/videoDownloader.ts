@@ -286,28 +286,44 @@ function extractStatusPath(parsed: URL): string | null {
   return `${match[1]}/status/${match[2]}`;
 }
 
+function extractStatusId(parsed: URL): string | null {
+  const match = parsed.pathname.match(/\/status\/(\d+)/);
+  return match?.[1] ?? null;
+}
+
 async function fetchFxTwitterData(parsed: URL): Promise<FxTwitterResponse> {
   const statusPath = extractStatusPath(parsed);
-  if (!statusPath) {
+  const statusId = extractStatusId(parsed);
+  if (!statusPath || !statusId) {
     throw new ExtractionFailedError(
       "Couldn't find a downloadable video on that post. It may be private, deleted, or contain no video.",
     );
   }
 
-  try {
-    const response = await fetch(`https://api.fxtwitter.com/${statusPath}`, {
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!response.ok) {
-      throw new Error(`fxtwitter responded with ${response.status}`);
+  const endpointPaths = [statusPath, `status/${statusId}`];
+  let lastStatus: number | null = null;
+
+  for (const endpointPath of endpointPaths) {
+    try {
+      const response = await fetch(`https://api.fxtwitter.com/${endpointPath}`, {
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (response.ok) {
+        return (await response.json()) as FxTwitterResponse;
+      }
+      lastStatus = response.status;
+    } catch (err) {
+      logger.warn({ err, endpointPath }, "fxtwitter endpoint lookup failed");
     }
-    return (await response.json()) as FxTwitterResponse;
-  } catch (err) {
-    logger.warn({ err, sourceUrl: parsed.toString() }, "fxtwitter lookup failed");
-    throw new ExtractionFailedError(
-      "Couldn't find a downloadable video on that post. It may be private, deleted, or contain no video.",
-    );
   }
+
+  logger.warn(
+    { sourceUrl: parsed.toString(), lastStatus },
+    "fxtwitter lookup failed for all endpoint variants",
+  );
+  throw new ExtractionFailedError(
+    "Couldn't find a downloadable video on that post. It may be private, deleted, or contain no video.",
+  );
 }
 
 function parseHeightFromUrl(url: string): number | null {
