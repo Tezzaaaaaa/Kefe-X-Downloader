@@ -18,11 +18,7 @@ import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const formSchema = z.object({
-  url: z.string().url("Please enter a valid URL").refine((val) => {
-    return val.includes("x.com") || val.includes("twitter.com");
-  }, {
-    message: "URL must be from X or Twitter",
-  }),
+  url: z.string().url("Please enter a valid video URL"),
 });
 
 function formatBytes(bytes: number) {
@@ -163,7 +159,7 @@ export default function Home() {
             Grab That Video
           </h1>
           <p className="text-lg text-muted-foreground font-medium" data-testid="text-subtitle">
-            Paste an X/Twitter post link. Get the video file. Fast and simple.
+            Paste a link from a supported video site. Get the file. Fast and simple.
           </p>
         </div>
 
@@ -185,7 +181,7 @@ export default function Home() {
                             <LinkIcon size={20} />
                           </div>
                           <Input 
-                            placeholder="https://x.com/user/status/123..." 
+                           placeholder="https://www.youtube.com/watch?v=..." 
                             className="pl-11 h-16 text-lg rounded-2xl bg-secondary/30 border-2 focus-visible:ring-offset-0 focus-visible:ring-primary/20 focus-visible:border-primary transition-all shadow-inner" 
                             {...field} 
                             data-testid="input-url"

@@ -15,15 +15,6 @@ export const videosDir = path.resolve(workspaceRoot, "artifacts/api-server/data/
 
 fs.mkdirSync(videosDir, { recursive: true });
 
-const ALLOWED_HOSTS = new Set([
-  "twitter.com",
-  "www.twitter.com",
-  "mobile.twitter.com",
-  "x.com",
-  "www.x.com",
-  "mobile.x.com",
-]);
-
 export class InvalidUrlError extends Error {}
 export class ExtractionFailedError extends Error {}
 
@@ -55,7 +46,7 @@ function scheduleCleanup(id: string): void {
   }, FILE_TTL_MS).unref();
 }
 
-export function validatePostUrl(rawUrl: string): URL {
+export function validateDownloadUrl(rawUrl: string): URL {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -67,13 +58,43 @@ export function validatePostUrl(rawUrl: string): URL {
     throw new InvalidUrlError("URL must start with http:// or https://.");
   }
 
-  if (!ALLOWED_HOSTS.has(parsed.hostname.toLowerCase())) {
+  const hostname = parsed.hostname.toLowerCase();
+  const isPrivateIpv4 =
+    /^(10|127)\./.test(hostname) ||
+    /^169\.254\./.test(hostname) ||
+    /^192\.168\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname);
+  const isPrivateIpv6 =
+    hostname === "::1" ||
+    hostname.startsWith("fc") ||
+    hostname.startsWith("fd") ||
+    hostname.startsWith("fe80:");
+
+  if (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".local") ||
+    hostname.endsWith(".internal") ||
+    isPrivateIpv4 ||
+    isPrivateIpv6
+  ) {
     throw new InvalidUrlError(
-      "Please paste a link to a post on x.com or twitter.com.",
+      "Please enter a public video URL.",
     );
   }
 
   return parsed;
+}
+
+function isTwitterUrl(parsed: URL): boolean {
+  return new Set([
+    "twitter.com",
+    "www.twitter.com",
+    "mobile.twitter.com",
+    "x.com",
+    "www.x.com",
+    "mobile.x.com",
+  ]).has(parsed.hostname.toLowerCase());
 }
 
 interface YtDlpFormat {
@@ -83,6 +104,8 @@ interface YtDlpFormat {
   width?: number;
   vcodec?: string;
   acodec?: string;
+  video_ext?: string;
+  audio_ext?: string;
   filesize?: number;
   filesize_approx?: number;
   format_note?: string;
@@ -140,9 +163,11 @@ async function runYtDlpJson(sourceUrl: string): Promise<YtDlpInfo> {
 async function listFormatsWithYtDlp(sourceUrl: string): Promise<VideoFormatsResult> {
   const info = await runYtDlpJson(sourceUrl);
 
-  const videoFormats = (info.formats ?? []).filter(
-    (f) => f.vcodec && f.vcodec !== "none" && f.format_id,
-  );
+  const videoFormats = (info.formats ?? []).filter((f) => {
+    const hasVideoCodec = f.vcodec && f.vcodec !== "none";
+    const hasVideoExtension = f.video_ext && f.video_ext !== "none";
+    return f.format_id && (hasVideoCodec || hasVideoExtension);
+  });
 
   const byHeight = new Map<string, YtDlpFormat>();
   for (const f of videoFormats) {
@@ -457,13 +482,19 @@ async function downloadViaFxTwitterFallback(
 }
 
 export async function listVideoFormats(sourceUrl: string): Promise<VideoFormatsResult> {
-  const parsed = validatePostUrl(sourceUrl);
+  const parsed = validateDownloadUrl(sourceUrl);
 
   try {
     return await listFormatsWithYtDlp(parsed.toString());
   } catch (err) {
-    logger.warn({ err, sourceUrl }, "yt-dlp failed to list formats, trying fxtwitter fallback");
-    return await listFormatsWithFxTwitter(parsed);
+    if (isTwitterUrl(parsed)) {
+      logger.warn({ err, sourceUrl }, "yt-dlp failed to list formats, trying fxtwitter fallback");
+      return await listFormatsWithFxTwitter(parsed);
+    }
+    logger.warn({ err, sourceUrl }, "yt-dlp could not list video formats");
+    throw new ExtractionFailedError(
+      "Couldn't find a downloadable video at that URL. The site may be unsupported, private, or not contain a video.",
+    );
   }
 }
 
@@ -471,7 +502,7 @@ export async function downloadVideoFromPost(
   sourceUrl: string,
   formatId?: string | null,
 ): Promise<StoredVideo> {
-  const parsed = validatePostUrl(sourceUrl);
+  const parsed = validateDownloadUrl(sourceUrl);
 
   const id = randomUUID();
   const outputTemplate = path.join(videosDir, `${id}.%(ext)s`);
@@ -486,8 +517,15 @@ export async function downloadVideoFromPost(
     try {
       result = await downloadWithYtDlp(parsed.toString(), id, outputTemplate, formatId ?? undefined);
     } catch (err) {
-      logger.warn({ err, sourceUrl }, "yt-dlp failed to extract video, trying fxtwitter fallback");
-      result = await downloadViaFxTwitterFallback(parsed, id);
+      if (isTwitterUrl(parsed)) {
+        logger.warn({ err, sourceUrl }, "yt-dlp failed to extract video, trying fxtwitter fallback");
+        result = await downloadViaFxTwitterFallback(parsed, id);
+      } else {
+        logger.warn({ err, sourceUrl }, "yt-dlp could not download video");
+        throw new ExtractionFailedError(
+          "Couldn't download a video from that URL. The site may be unsupported, private, or not contain a video.",
+        );
+      }
     }
   }
 

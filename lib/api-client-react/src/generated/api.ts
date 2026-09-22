@@ -141,8 +141,8 @@ export const getListVideoFormatsUrl = () => {
 }
 
 /**
- * Accepts a social media post URL and returns the available video quality/format options without downloading the video, so the user can pick one before committing to a download.
- * @summary List available video quality options for a post URL
+ * Accepts a URL supported by yt-dlp and returns the available video quality/format options without downloading the video, so the user can pick one before committing to a download.
+ * @summary List available video quality options for a video URL
  */
 export const listVideoFormats = async (videoRequest: VideoRequest, options?: RequestInit): Promise<VideoFormatsResponse> => {
 
@@ -190,7 +190,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type ListVideoFormatsMutationError = ErrorType<ErrorResponse>
 
     /**
- * @summary List available video quality options for a post URL
+ * @summary List available video quality options for a video URL
  */
 export const useListVideoFormats = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof listVideoFormats>>, TError,{data: BodyType<VideoRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -212,8 +212,8 @@ export const getCreateVideoDownloadUrl = () => {
 }
 
 /**
- * Accepts a social media post URL, downloads the video server-side, and returns metadata plus a link to fetch the downloaded file. Optionally accepts a formatId (from listVideoFormats) to select a specific quality; otherwise the best available quality is used.
- * @summary Resolve and download a video from a post URL
+ * Accepts a URL supported by yt-dlp, downloads the video server-side, and returns metadata plus a link to fetch the downloaded file. Optionally accepts a formatId (from listVideoFormats) to select a specific quality; otherwise the best available quality is used.
+ * @summary Resolve and download a video from a URL
  */
 export const createVideoDownload = async (videoRequest: VideoRequest, options?: RequestInit): Promise<Video> => {
 
@@ -261,7 +261,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateVideoDownloadMutationError = ErrorType<ErrorResponse>
 
     /**
- * @summary Resolve and download a video from a post URL
+ * @summary Resolve and download a video from a URL
  */
 export const useCreateVideoDownload = <TError = ErrorType<ErrorResponse>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createVideoDownload>>, TError,{data: BodyType<VideoRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}

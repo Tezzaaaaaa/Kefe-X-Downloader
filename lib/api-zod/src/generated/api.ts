@@ -18,8 +18,8 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * Accepts a social media post URL and returns the available video quality/format options without downloading the video, so the user can pick one before committing to a download.
- * @summary List available video quality options for a post URL
+ * Accepts a URL supported by yt-dlp and returns the available video quality/format options without downloading the video, so the user can pick one before committing to a download.
+ * @summary List available video quality options for a video URL
  */
 export const ListVideoFormatsBody = zod.object({
   "url": zod.string().describe('The post URL to extract a video from'),
@@ -43,8 +43,8 @@ export const ListVideoFormatsResponse = zod.object({
 
 
 /**
- * Accepts a social media post URL, downloads the video server-side, and returns metadata plus a link to fetch the downloaded file. Optionally accepts a formatId (from listVideoFormats) to select a specific quality; otherwise the best available quality is used.
- * @summary Resolve and download a video from a post URL
+ * Accepts a URL supported by yt-dlp, downloads the video server-side, and returns metadata plus a link to fetch the downloaded file. Optionally accepts a formatId (from listVideoFormats) to select a specific quality; otherwise the best available quality is used.
+ * @summary Resolve and download a video from a URL
  */
 export const CreateVideoDownloadBody = zod.object({
   "url": zod.string().describe('The post URL to extract a video from'),
