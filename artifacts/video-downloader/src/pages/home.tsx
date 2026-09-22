@@ -17,6 +17,68 @@ import {
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
+const SUPPORTED_SITES = [
+  { name: "YouTube", url: "https://youtube.com" },
+  { name: "YouTube Music", url: "https://music.youtube.com" },
+  { name: "TikTok", url: "https://tiktok.com" },
+  { name: "Instagram", url: "https://instagram.com" },
+  { name: "Facebook", url: "https://facebook.com" },
+  { name: "X / Twitter", url: "https://x.com" },
+  { name: "Reddit", url: "https://reddit.com" },
+  { name: "Vimeo", url: "https://vimeo.com" },
+  { name: "SoundCloud", url: "https://soundcloud.com" },
+  { name: "Twitch", url: "https://twitch.tv" },
+  { name: "Kick", url: "https://kick.com" },
+  { name: "Rumble", url: "https://rumble.com" },
+  { name: "Dailymotion", url: "https://dailymotion.com" },
+  { name: "Bilibili", url: "https://bilibili.com" },
+  { name: "VK", url: "https://vk.com" },
+  { name: "VKontakte Video", url: "https://vkvideo.ru" },
+  { name: "Telegram", url: "https://telegram.org" },
+  { name: "Pinterest", url: "https://pinterest.com" },
+  { name: "Tumblr", url: "https://tumblr.com" },
+  { name: "LinkedIn", url: "https://linkedin.com" },
+  { name: "Snapchat", url: "https://snapchat.com" },
+  { name: "Threads", url: "https://threads.net" },
+  { name: "Bluesky", url: "https://bsky.app" },
+  { name: "Mastodon", url: "https://mastodon.social" },
+  { name: "Triller", url: "https://triller.co" },
+  { name: "Likee", url: "https://likee.video" },
+  { name: "Mixcloud", url: "https://mixcloud.com" },
+  { name: "Bandcamp", url: "https://bandcamp.com" },
+  { name: "Audiomack", url: "https://audiomack.com" },
+  { name: "Jamendo", url: "https://jamendo.com" },
+  { name: "HearThisAt", url: "https://hearthis.at" },
+  { name: "Archive.org", url: "https://archive.org" },
+  { name: "Streamable", url: "https://streamable.com" },
+  { name: "Streamtape", url: "https://streamtape.com" },
+  { name: "PeerTube", url: "https://joinpeertube.org" },
+  { name: "Wistia", url: "https://wistia.com" },
+  { name: "Wix", url: "https://wix.com" },
+  { name: "Patreon", url: "https://patreon.com" },
+  { name: "Substack", url: "https://substack.com" },
+  { name: "Newgrounds", url: "https://newgrounds.com" },
+  { name: "Gofile", url: "https://gofile.io" },
+  { name: "Imgur", url: "https://imgur.com" },
+  { name: "Flickr", url: "https://flickr.com" },
+  { name: "DeviantArt", url: "https://deviantart.com" },
+  { name: "XHamster", url: "https://xhamster.com" },
+  { name: "XNXX", url: "https://xnxx.com" },
+  { name: "XVideos", url: "https://xvideos.com" },
+  { name: "Pornhub", url: "https://pornhub.com" },
+  { name: "YouPorn", url: "https://youporn.com" },
+  { name: "RedTube", url: "https://redtube.com" },
+  { name: "SpankBang", url: "https://spankbang.com" },
+  { name: "Stripchat", url: "https://stripchat.com" },
+  { name: "Chaturbate", url: "https://chaturbate.com" },
+  { name: "CAM4", url: "https://cam4.com" },
+  { name: "Camsoda", url: "https://camsoda.com" },
+  { name: "BongaCams", url: "https://bongacams.com" },
+  { name: "Motherless", url: "https://motherless.com" },
+  { name: "Rule34Video", url: "https://rule34video.com" },
+  { name: "RedGifs", url: "https://redgifs.com" }
+];
+
 const formSchema = z.object({
   url: z.string().url("Please enter a valid video URL"),
 });
@@ -41,6 +103,7 @@ export default function Home() {
   const [postUrl, setPostUrl] = useState<string>("");
   const [retryNotice, setRetryNotice] = useState<string | null>(null);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
+  const supportedSitesId = "supported-sites";
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -51,6 +114,28 @@ export default function Home() {
 
   const listVideoFormats = useListVideoFormats();
   const createVideoDownload = useCreateVideoDownload();
+
+
+  function openSupportedSite(url: string) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    const select = document.getElementById(supportedSitesId) as HTMLSelectElement | null;
+    if (select) select.value = "";
+  }
+
+  function downloadSupportedSites(type: "txt" | "csv") {
+    const content = type === "csv"
+      ? ["Name,URL", ...SUPPORTED_SITES.map((site) => `"${site.name.replace(/"/g, '""')}","${site.url}"`)].join("\n")
+      : SUPPORTED_SITES.map((site) => `${site.name} — ${site.url}`).join("\n");
+    const blob = new Blob([content], { type: type === "csv" ? "text/csv;charset=utf-8" : "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `kefe-supported-sites.${type}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     setVideoResult(null);
@@ -170,6 +255,30 @@ export default function Home() {
           {showForm && (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <div className="space-y-3">
+                  <label htmlFor="supported-sites" className="sr-only">Supported Sites</label>
+                  <select
+                    id="supported-sites"
+                    defaultValue=""
+                    onChange={(event) => {
+                      const site = SUPPORTED_SITES.find((item) => item.url === event.target.value);
+                      if (site) openSupportedSite(site.url);
+                    }}
+                    className="supported-sites-select"
+                  >
+                    <option value="">Supported Sites</option>
+                    {SUPPORTED_SITES.map((site) => (
+                      <option key={site.url} value={site.url}>{site.name}</option>
+                    ))}
+                  </select>
+                  <div className="supported-sites-downloads">
+                    <span>Full list</span>
+                    <button type="button" onClick={() => downloadSupportedSites("txt")}>Download .txt</button>
+                    <span aria-hidden="true">·</span>
+                    <button type="button" onClick={() => downloadSupportedSites("csv")}>Download .csv</button>
+                  </div>
+                </div>
+
                 <FormField
                   control={form.control}
                   name="url"
