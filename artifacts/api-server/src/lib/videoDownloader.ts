@@ -150,7 +150,7 @@ async function runYtDlpJson(sourceUrl: string): Promise<YtDlpInfo> {
   const { PYTHONPATH: _unusedPythonPath, ...envWithoutPythonPath } = process.env;
   const result = await execFileAsync(
     "uvx",
-    ["yt-dlp", "--no-playlist", "--no-warnings", "--skip-download", "-J", sourceUrl],
+    ["--from", "yt-dlp[default,curl-cffi]", "yt-dlp", "--no-playlist", "--no-warnings", "--skip-download", "-J", sourceUrl],
     {
       timeout: 60_000,
       maxBuffer: 10 * 1024 * 1024,
@@ -228,6 +228,8 @@ async function downloadWithYtDlp(
   const result = await execFileAsync(
     "uvx",
     [
+      "--from",
+      "yt-dlp[default,curl-cffi]",
       "yt-dlp",
       "--no-playlist",
       "--no-warnings",
