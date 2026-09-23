@@ -94,12 +94,18 @@ export default function Home() {
 
   function downloadVideo() {
     if (!videoResult?.downloadUrl) return;
-    const a = document.createElement("a");
-    a.href = getDownloadHref(videoResult.downloadUrl);
-    a.download = "video.mp4";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    const href = getDownloadHref(videoResult.downloadUrl);
+    const isiOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    if (isiOS) {
+      window.open(href, "_blank", "noopener");
+    } else {
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = "video.mp4";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
   }
 
   const formatsError = (listVideoFormats.error as any)?.error || "Couldn't read that link. Try another.";
