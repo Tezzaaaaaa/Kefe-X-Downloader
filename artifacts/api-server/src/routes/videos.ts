@@ -18,6 +18,18 @@ import {
 
 const router: IRouter = Router();
 
+const MIME_BY_EXT: Record<string, string> = {
+  ".mp4": "video/mp4",
+  ".m4v": "video/x-m4v",
+  ".mov": "video/quicktime",
+  ".webm": "video/webm",
+  ".mkv": "video/x-matroska",
+  ".mp3": "audio/mpeg",
+  ".m4a": "audio/mp4",
+  ".opus": "audio/opus",
+  ".wav": "audio/wav",
+};
+
 router.post("/videos/formats", async (req, res): Promise<void> => {
   const parsed = ListVideoFormatsBody.safeParse(req.body);
   if (!parsed.success) {
@@ -114,7 +126,9 @@ router.get("/videos/:id/file", (req, res): void => {
   const totalSize = stat.size;
   const range = req.headers.range;
   const encodedFileName = encodeURIComponent(video.fileName);
-  res.setHeader("Content-Type", "application/octet-stream");
+  const ext = path.extname(video.fileName).toLowerCase();
+  const contentType = MIME_BY_EXT[ext] || "video/mp4";
+  res.setHeader("Content-Type", contentType);
   res.setHeader("Content-Disposition", `attachment; filename="${path.basename(video.fileName)}"; filename*=UTF-8''${encodedFileName}`);
   res.setHeader("Accept-Ranges", "bytes");
   res.setHeader("Cache-Control", "no-store");
