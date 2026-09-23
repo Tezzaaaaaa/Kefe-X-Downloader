@@ -33,6 +33,15 @@ function formatDuration(seconds: number) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+// Shared styling (black and white only)
+const primaryBtn =
+  "w-full h-12 rounded-full bg-white text-black font-medium transition-colors hover:bg-white/85 " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black";
+const ghostBtn =
+  "text-xs text-white/50 hover:text-white transition-colors inline-flex items-center gap-1.5 " +
+  "focus-visible:outline-none focus-visible:text-white";
+const stage = "animate-in fade-in duration-500";
+
 export default function Home() {
   const [videoResult, setVideoResult] = useState<Video | null>(null);
   const [formatsResult, setFormatsResult] = useState<VideoFormatsResponse | null>(null);
@@ -115,17 +124,16 @@ export default function Home() {
   const showFormats = !videoResult && formatsResult && !createVideoDownload.isPending;
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground flex flex-col items-center justify-center px-6 py-12">
+    <div className="min-h-[100dvh] bg-black text-white selection:bg-white selection:text-black flex flex-col items-center justify-center px-6 py-12">
       <div className="w-full max-w-md">
-
-        <header className="mb-10">
-          <h1 className="text-3xl font-semibold tracking-tight">Video Downloader</h1>
-          <p className="text-sm text-muted-foreground mt-1">Paste a link. Get the file.</p>
+        <header className="mb-14">
+          <h1 className="text-4xl font-light tracking-tight">Video Downloader</h1>
+          <p className="text-sm text-white/50 mt-3">Paste a link. Get the file.</p>
         </header>
 
         {showForm && (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit)} className={`space-y-8 ${stage}`}>
               <FormField
                 control={form.control}
                 name="url"
@@ -134,24 +142,21 @@ export default function Home() {
                     <FormControl>
                       <Input
                         placeholder="https://..."
-                        className="h-14 rounded-none border-0 border-b border-border bg-transparent px-0 text-base focus-visible:ring-0 focus-visible:border-foreground"
+                        className="h-14 rounded-none border-0 border-b border-white/20 bg-transparent px-0 text-base text-white placeholder:text-white/30 shadow-none transition-colors focus-visible:ring-0 focus-visible:border-white"
                         autoComplete="off"
                         autoCapitalize="off"
                         autoCorrect="off"
                         {...field}
                       />
                     </FormControl>
-                    <FormMessage className="text-xs" />
+                    <FormMessage className="text-xs text-white/60" />
                   </FormItem>
                 )}
               />
               {listVideoFormats.isError && (
-                <p className="text-xs text-muted-foreground">{formatsError}</p>
+                <p className="text-xs text-white/60">{formatsError}</p>
               )}
-              <Button
-                type="submit"
-                className="w-full h-12 rounded-none bg-foreground text-background hover:bg-foreground/90 font-medium"
-              >
+              <Button type="submit" className={primaryBtn}>
                 Continue
               </Button>
             </form>
@@ -159,40 +164,46 @@ export default function Home() {
         )}
 
         {listVideoFormats.isPending && (
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <div className={`flex items-center gap-3 text-sm text-white/50 ${stage}`}>
             <Loader2 size={16} className="animate-spin" />
             Reading link...
           </div>
         )}
 
         {showFormats && (
-          <div className="space-y-6">
-            <div className="aspect-video bg-muted overflow-hidden">
+          <div className={`space-y-8 ${stage}`}>
+            <div className="aspect-video bg-white/5 overflow-hidden rounded-lg">
               {formatsResult.thumbnailUrl ? (
-                <img src={formatsResult.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                <img
+                  src={formatsResult.thumbnailUrl}
+                  alt=""
+                  className="w-full h-full object-cover grayscale transition duration-500 hover:grayscale-0"
+                />
               ) : null}
             </div>
 
             <div>
-              <p className="text-sm font-medium line-clamp-2">{formatsResult.title || "Untitled"}</p>
+              <p className="text-base font-medium line-clamp-2">{formatsResult.title || "Untitled"}</p>
               {formatsResult.durationSeconds != null && (
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-white/50 mt-1.5">
                   {formatDuration(formatsResult.durationSeconds)}
                 </p>
               )}
             </div>
 
-            <div className="space-y-1">
+            <div className="border-t border-white/15">
               {formatsResult.formats.map((format) => (
                 <button
                   key={format.formatId}
                   type="button"
                   onClick={() => chooseFormat(format)}
-                  className="w-full flex items-center justify-between py-3 text-left text-sm border-b border-border hover:pl-1 transition-all"
+                  className="group w-full flex items-center justify-between py-4 text-left text-sm border-b border-white/15 transition-colors hover:border-white focus-visible:outline-none focus-visible:border-white"
                 >
-                  <span className="font-medium">{format.label}</span>
+                  <span className="font-medium transition-transform duration-300 group-hover:translate-x-1 group-focus-visible:translate-x-1">
+                    {format.label}
+                  </span>
                   {format.fileSizeBytes != null && (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs text-white/50 transition-colors group-hover:text-white">
                       {formatBytes(format.fileSizeBytes)}
                     </span>
                   )}
@@ -201,14 +212,10 @@ export default function Home() {
             </div>
 
             {createVideoDownload.isError && (
-              <p className="text-xs text-muted-foreground">{downloadError}</p>
+              <p className="text-xs text-white/60">{downloadError}</p>
             )}
 
-            <button
-              type="button"
-              onClick={resetForm}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
-            >
+            <button type="button" onClick={resetForm} className={ghostBtn}>
               <ArrowLeft size={12} />
               Try another link
             </button>
@@ -216,23 +223,27 @@ export default function Home() {
         )}
 
         {createVideoDownload.isPending && (
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <div className={`flex items-center gap-3 text-sm text-white/50 ${stage}`}>
             <Loader2 size={16} className="animate-spin" />
             Fetching {selectedLabel ?? "video"}...
           </div>
         )}
 
         {videoResult && (
-          <div className="space-y-6">
-            <div className="aspect-video bg-muted overflow-hidden">
+          <div className={`space-y-8 ${stage}`}>
+            <div className="aspect-video bg-white/5 overflow-hidden rounded-lg">
               {videoResult.thumbnailUrl ? (
-                <img src={videoResult.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+                <img
+                  src={videoResult.thumbnailUrl}
+                  alt=""
+                  className="w-full h-full object-cover grayscale transition duration-500 hover:grayscale-0"
+                />
               ) : null}
             </div>
 
             <div>
-              <p className="text-sm font-medium line-clamp-2">{videoResult.title || "Untitled"}</p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-base font-medium line-clamp-2">{videoResult.title || "Untitled"}</p>
+              <p className="text-xs text-white/50 mt-1.5">
                 {videoResult.durationSeconds != null && formatDuration(videoResult.durationSeconds)}
                 {videoResult.durationSeconds != null && videoResult.fileSizeBytes != null && " · "}
                 {videoResult.fileSizeBytes != null && formatBytes(videoResult.fileSizeBytes)}
@@ -242,23 +253,18 @@ export default function Home() {
             <button
               type="button"
               onClick={downloadVideo}
-              className="w-full h-12 bg-foreground text-background font-medium inline-flex items-center justify-center gap-2 hover:bg-foreground/90 transition-colors"
+              className={`${primaryBtn} inline-flex items-center justify-center gap-2`}
             >
               <Download size={16} />
               Save
             </button>
 
-            <button
-              type="button"
-              onClick={resetForm}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
-            >
+            <button type="button" onClick={resetForm} className={ghostBtn}>
               <ArrowLeft size={12} />
               New download
             </button>
           </div>
         )}
-
       </div>
     </div>
   );
