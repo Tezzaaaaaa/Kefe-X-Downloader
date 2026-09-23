@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Download, Link as LinkIcon, Loader2, PlayCircle, AlertCircle, RefreshCw, XCircle, Gauge } from "lucide-react";
+import { useState } from "react";
+import { Download, Loader2, ArrowLeft } from "lucide-react";
 import { useCreateVideoDownload, useListVideoFormats } from "@workspace/api-client-react";
 import type { Video, VideoFormat, VideoFormatsResponse } from "@workspace/api-client-react";
 import { z } from "zod";
@@ -14,81 +14,17 @@ import {
   FormItem,
   FormMessage,
 } from "@/components/ui/form";
-import { Card } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
-const SUPPORTED_SITES = [
-  { name: "YouTube", url: "https://youtube.com" },
-  { name: "YouTube Music", url: "https://music.youtube.com" },
-  { name: "TikTok", url: "https://tiktok.com" },
-  { name: "Instagram", url: "https://instagram.com" },
-  { name: "Facebook", url: "https://facebook.com" },
-  { name: "X / Twitter", url: "https://x.com" },
-  { name: "Reddit", url: "https://reddit.com" },
-  { name: "Vimeo", url: "https://vimeo.com" },
-  { name: "SoundCloud", url: "https://soundcloud.com" },
-  { name: "Twitch", url: "https://twitch.tv" },
-  { name: "Kick", url: "https://kick.com" },
-  { name: "Rumble", url: "https://rumble.com" },
-  { name: "Dailymotion", url: "https://dailymotion.com" },
-  { name: "Bilibili", url: "https://bilibili.com" },
-  { name: "VK", url: "https://vk.com" },
-  { name: "VKontakte Video", url: "https://vkvideo.ru" },
-  { name: "Telegram", url: "https://telegram.org" },
-  { name: "Pinterest", url: "https://pinterest.com" },
-  { name: "Tumblr", url: "https://tumblr.com" },
-  { name: "LinkedIn", url: "https://linkedin.com" },
-  { name: "Snapchat", url: "https://snapchat.com" },
-  { name: "Threads", url: "https://threads.net" },
-  { name: "Bluesky", url: "https://bsky.app" },
-  { name: "Mastodon", url: "https://mastodon.social" },
-  { name: "Triller", url: "https://triller.co" },
-  { name: "Likee", url: "https://likee.video" },
-  { name: "Mixcloud", url: "https://mixcloud.com" },
-  { name: "Bandcamp", url: "https://bandcamp.com" },
-  { name: "Audiomack", url: "https://audiomack.com" },
-  { name: "Jamendo", url: "https://jamendo.com" },
-  { name: "HearThisAt", url: "https://hearthis.at" },
-  { name: "Archive.org", url: "https://archive.org" },
-  { name: "Streamable", url: "https://streamable.com" },
-  { name: "Streamtape", url: "https://streamtape.com" },
-  { name: "PeerTube", url: "https://joinpeertube.org" },
-  { name: "Wistia", url: "https://wistia.com" },
-  { name: "Wix", url: "https://wix.com" },
-  { name: "Patreon", url: "https://patreon.com" },
-  { name: "Substack", url: "https://substack.com" },
-  { name: "Newgrounds", url: "https://newgrounds.com" },
-  { name: "Gofile", url: "https://gofile.io" },
-  { name: "Imgur", url: "https://imgur.com" },
-  { name: "Flickr", url: "https://flickr.com" },
-  { name: "DeviantArt", url: "https://deviantart.com" },
-  { name: "XHamster", url: "https://xhamster.com" },
-  { name: "XNXX", url: "https://xnxx.com" },
-  { name: "XVideos", url: "https://xvideos.com" },
-  { name: "Pornhub", url: "https://pornhub.com" },
-  { name: "YouPorn", url: "https://youporn.com" },
-  { name: "RedTube", url: "https://redtube.com" },
-  { name: "SpankBang", url: "https://spankbang.com" },
-  { name: "Stripchat", url: "https://stripchat.com" },
-  { name: "Chaturbate", url: "https://chaturbate.com" },
-  { name: "CAM4", url: "https://cam4.com" },
-  { name: "Camsoda", url: "https://camsoda.com" },
-  { name: "BongaCams", url: "https://bongacams.com" },
-  { name: "Motherless", url: "https://motherless.com" },
-  { name: "Rule34Video", url: "https://rule34video.com" },
-  { name: "RedGifs", url: "https://redgifs.com" }
-];
 
 const formSchema = z.object({
-  url: z.string().url("Please enter a valid video URL"),
+  url: z.string().url("Enter a valid URL"),
 });
 
 function formatBytes(bytes: number) {
-  if (bytes === 0) return "0 Bytes";
+  if (!bytes) return null;
   const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
 }
 
 function formatDuration(seconds: number) {
@@ -101,122 +37,60 @@ export default function Home() {
   const [videoResult, setVideoResult] = useState<Video | null>(null);
   const [formatsResult, setFormatsResult] = useState<VideoFormatsResponse | null>(null);
   const [postUrl, setPostUrl] = useState<string>("");
-  const [retryNotice, setRetryNotice] = useState<string | null>(null);
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
-  const supportedSitesId = "supported-sites";
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      url: "",
-    },
+    defaultValues: { url: "" },
   });
 
   const listVideoFormats = useListVideoFormats();
   const createVideoDownload = useCreateVideoDownload();
 
-
-  function openSupportedSite(url: string) {
-    window.open(url, "_blank", "noopener,noreferrer");
-    const select = document.getElementById(supportedSitesId) as HTMLSelectElement | null;
-    if (select) select.value = "";
-  }
-
-  function downloadSupportedSites(type: "txt" | "csv") {
-    const content = type === "csv"
-      ? ["Name,URL", ...SUPPORTED_SITES.map((site) => `"${site.name.replace(/"/g, '""')}","${site.url}"`)].join("\n")
-      : SUPPORTED_SITES.map((site) => `${site.name} — ${site.url}`).join("\n");
-    const blob = new Blob([content], { type: type === "csv" ? "text/csv;charset=utf-8" : "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `kefe-supported-sites.${type}`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  }
-
   function onSubmit(values: z.infer<typeof formSchema>) {
     setVideoResult(null);
     setFormatsResult(null);
-    setRetryNotice(null);
-    setSelectedLabel(null);
     setPostUrl(values.url);
     listVideoFormats.mutate(
       { data: { url: values.url } },
-      {
-        onSuccess: (data) => {
-          setFormatsResult(data);
-        },
-      }
+      { onSuccess: (data) => setFormatsResult(data) }
     );
   }
 
-  // Attempts to download the given quality. If that specific quality fails
-  // (e.g. a stale/broken CDN URL for that format), automatically falls back
-  // to the next-best quality in the list, then finally to the server's
-  // best-effort default (no formatId), so users rarely have to manually
-  // retry themselves.
-  function attemptDownload(remainingFormats: VideoFormat[], failedLabels: string[]) {
+  function attemptDownload(remainingFormats: VideoFormat[]) {
     const [next, ...rest] = remainingFormats;
-    const formatId = next?.formatId;
     setSelectedLabel(next?.label ?? "best available");
-    setRetryNotice(
-      failedLabels.length > 0
-        ? `${failedLabels[failedLabels.length - 1]} didn't work, trying ${next?.label ?? "best available"} instead...`
-        : null
-    );
-
     createVideoDownload.mutate(
-      { data: { url: postUrl, formatId } },
+      { data: { url: postUrl, formatId: next?.formatId } },
       {
-        onSuccess: (data) => {
-          setVideoResult(data);
-          setRetryNotice(null);
-        },
+        onSuccess: (data) => setVideoResult(data),
         onError: () => {
-          if (rest.length > 0) {
-            attemptDownload(rest, [...failedLabels, next?.label ?? "that quality"]);
-          } else {
-            setRetryNotice(null);
-          }
+          if (rest.length > 0) attemptDownload(rest);
         },
       }
     );
   }
 
-  function chooseFormat(format: VideoFormat | null) {
+  function chooseFormat(format: VideoFormat) {
     const formats = formatsResult?.formats ?? [];
-    // Build the fallback chain: chosen quality first, then every other
-    // quality (best to worst) as automatic retries if it fails.
-    const chain = format
-      ? [format, ...formats.filter((f) => f.formatId !== format.formatId)]
-      : formats;
-    attemptDownload(chain.length > 0 ? chain : [format as VideoFormat], []);
+    const chain = [format, ...formats.filter((f) => f.formatId !== format.formatId)];
+    attemptDownload(chain);
   }
 
-  const resetForm = () => {
+  function resetForm() {
     setVideoResult(null);
     setFormatsResult(null);
-    setRetryNotice(null);
     setSelectedLabel(null);
     setPostUrl("");
     form.reset();
     listVideoFormats.reset();
     createVideoDownload.reset();
-  };
+  }
 
-  // The API server is a separate service mounted at the "/api" path prefix
-  // (see artifacts/api-server/.replit-artifact/artifact.toml). It is NOT the
-  // same as this frontend's own BASE_URL, which is "/". Using BASE_URL here
-  // would point the download link at this SPA's own root, which falls back
-  // to index.html for unmatched routes -- resulting in an HTML file being
-  // downloaded instead of the actual video.
-  const getDownloadHref = (downloadUrl: string) => {
-    const path = downloadUrl.startsWith('/') ? downloadUrl : `/${downloadUrl}`;
+  function getDownloadHref(url: string) {
+    const path = url.startsWith("/") ? url : `/${url}`;
     return `/api${path}`;
-  };
+  }
 
   function downloadVideo() {
     if (!videoResult?.downloadUrl) return;
@@ -228,289 +102,157 @@ export default function Home() {
     a.remove();
   }
 
-  const isFormatsError = listVideoFormats.isError;
-  const formatsErrorMessage = (listVideoFormats.error as any)?.error || "Failed to extract video. It might be private, deleted, or unsupported.";
-
-  const isDownloadError = createVideoDownload.isError;
-  const downloadErrorMessage = (createVideoDownload.error as any)?.error || "Failed to download that quality. Please try another one.";
+  const formatsError = (listVideoFormats.error as any)?.error || "Couldn't read that link. Try another.";
+  const downloadError = (createVideoDownload.error as any)?.error || "That quality didn't work.";
 
   const showForm = !videoResult && !formatsResult && !listVideoFormats.isPending;
-  const showFormatPicker = !videoResult && formatsResult && !createVideoDownload.isPending;
+  const showFormats = !videoResult && formatsResult && !createVideoDownload.isPending;
 
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden bg-background">
-      {/* Decorative background shapes */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[100px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-accent/30 rounded-full blur-[120px] pointer-events-none" />
-      
-      <div className="w-full max-w-xl z-10 space-y-8">
-        
-        {/* Header */}
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20 mb-2">
-            <Download size={32} strokeWidth={2.5} />
-          </div>
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-foreground" data-testid="heading-title">
-            Grab That Video
-          </h1>
-          <p className="text-lg text-muted-foreground font-medium" data-testid="text-subtitle">
-            Paste a link from a supported video site. Get the file. Fast and simple.
-          </p>
-        </div>
+    <div className="min-h-[100dvh] bg-background text-foreground flex flex-col items-center justify-center px-6 py-12">
+      <div className="w-full max-w-md">
 
-        {/* Main Content Area */}
-        <div className="bg-card shadow-xl shadow-black/5 rounded-3xl border border-border p-6 sm:p-8">
-          
-          {/* Form State */}
-          {showForm && (
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <div className="space-y-3">
-                  <label htmlFor="supported-sites" className="sr-only">Supported Sites</label>
-                  <select
-                    id="supported-sites"
-                    defaultValue=""
-                    onChange={(event) => {
-                      const site = SUPPORTED_SITES.find((item) => item.url === event.target.value);
-                      if (site) openSupportedSite(site.url);
-                    }}
-                    className="supported-sites-select"
-                  >
-                    <option value="">Supported Sites</option>
-                    {SUPPORTED_SITES.map((site) => (
-                      <option key={site.url} value={site.url}>{site.name}</option>
-                    ))}
-                  </select>
-                  <div className="supported-sites-downloads">
-                    <span>Full list</span>
-                    <button type="button" onClick={() => downloadSupportedSites("txt")}>Download .txt</button>
-                    <span aria-hidden="true">·</span>
-                    <button type="button" onClick={() => downloadSupportedSites("csv")}>Download .csv</button>
-                  </div>
-                </div>
+        <header className="mb-10">
+          <h1 className="text-3xl font-semibold tracking-tight">Video Downloader</h1>
+          <p className="text-sm text-muted-foreground mt-1">Paste a link. Get the file.</p>
+        </header>
 
-                <FormField
-                  control={form.control}
-                  name="url"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormControl>
-                        <div className="relative">
-                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-muted-foreground">
-                            <LinkIcon size={20} />
-                          </div>
-                          <Input 
-                           placeholder="https://www.youtube.com/watch?v=..." 
-                            className="pl-11 h-16 text-lg rounded-2xl bg-secondary/30 border-2 focus-visible:ring-offset-0 focus-visible:ring-primary/20 focus-visible:border-primary transition-all shadow-inner" 
-                            {...field} 
-                            data-testid="input-url"
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage className="text-sm font-medium ml-1" data-testid="error-url" />
-                    </FormItem>
-                  )}
-                />
-
-                {isFormatsError && (
-                  <Alert variant="destructive" className="rounded-xl border-2" data-testid="alert-error">
-                    <AlertCircle className="h-5 w-5" />
-                    <AlertTitle className="text-base font-bold">Oops!</AlertTitle>
-                    <AlertDescription className="text-sm font-medium mt-1">
-                      {formatsErrorMessage}
-                    </AlertDescription>
-                  </Alert>
+        {showForm && (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Input
+                        placeholder="https://..."
+                        className="h-14 rounded-none border-0 border-b border-border bg-transparent px-0 text-base focus-visible:ring-0 focus-visible:border-foreground"
+                        autoComplete="off"
+                        autoCapitalize="off"
+                        autoCorrect="off"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage className="text-xs" />
+                  </FormItem>
                 )}
-
-                <Button 
-                  type="submit" 
-                  size="lg" 
-                  className="w-full h-16 text-xl font-bold rounded-2xl shadow-lg shadow-primary/20 active:scale-[0.98] transition-transform"
-                  data-testid="button-submit"
-                >
-                  Get Video
-                </Button>
-              </form>
-            </Form>
-          )}
-
-          {/* Checking Formats Loading State */}
-          {listVideoFormats.isPending && (
-            <div className="py-12 flex flex-col items-center justify-center space-y-6 animate-in fade-in zoom-in duration-300">
-              <div className="relative">
-                <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-                <Loader2 size={48} className="text-primary animate-spin relative z-10" />
-              </div>
-              <div className="text-center space-y-2">
-                <h3 className="text-xl font-bold text-foreground">Checking Post</h3>
-                <p className="text-muted-foreground font-medium">Looking up available video qualities...</p>
-              </div>
-            </div>
-          )}
-
-          {/* Quality Picker State */}
-          {showFormatPicker && (
-            <div className="space-y-5 animate-in slide-in-from-bottom-4 fade-in duration-500" data-testid="format-picker-container">
-              {formatsResult.thumbnailUrl && (
-                <div className="aspect-video bg-black rounded-2xl overflow-hidden relative shadow-inner">
-                  <img
-                    src={formatsResult.thumbnailUrl}
-                    alt="Video thumbnail"
-                    className="w-full h-full object-cover opacity-80"
-                    data-testid="img-format-thumbnail"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
-                  <div className="absolute bottom-0 left-0 right-0 p-4 space-y-1 pointer-events-none">
-                    <h3 className="text-white font-bold text-base line-clamp-2 leading-tight" data-testid="text-format-title">
-                      {formatsResult.title || "Untitled Post"}
-                    </h3>
-                    {formatsResult.durationSeconds != null && (
-                      <span className="inline-block bg-white/20 px-2 py-1 rounded-md backdrop-blur-sm text-white/80 text-xs font-medium">
-                        {formatDuration(formatsResult.durationSeconds)}
-                      </span>
-                    )}
-                  </div>
-                </div>
+              />
+              {listVideoFormats.isError && (
+                <p className="text-xs text-muted-foreground">{formatsError}</p>
               )}
-
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-foreground font-bold">
-                  <Gauge size={18} />
-                  <span>Choose a quality</span>
-                </div>
-
-                {isDownloadError && (
-                  <Alert variant="destructive" className="rounded-xl border-2" data-testid="alert-download-error">
-                    <AlertCircle className="h-5 w-5" />
-                    <AlertTitle className="text-base font-bold">Oops!</AlertTitle>
-                    <AlertDescription className="text-sm font-medium mt-1">
-                      {downloadErrorMessage}
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {formatsResult.formats.map((format) => (
-                    <button
-                      key={format.formatId}
-                      type="button"
-                      onClick={() => chooseFormat(format)}
-                      className="flex flex-col items-center justify-center gap-1 h-20 rounded-2xl border-2 border-border bg-secondary/30 hover:border-primary hover:bg-primary/10 active:scale-[0.97] transition-all font-bold text-foreground"
-                      data-testid={`button-format-${format.formatId}`}
-                    >
-                      <span className="text-lg">{format.label}</span>
-                      {format.fileSizeBytes != null && (
-                        <span className="text-xs font-medium text-muted-foreground">
-                          {formatBytes(format.fileSizeBytes)}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <Button
-                type="button"
-                variant="secondary"
-                onClick={resetForm}
-                className="w-full h-14 text-base font-bold rounded-2xl active:scale-[0.98] transition-transform"
-                data-testid="button-reset-from-formats"
+                type="submit"
+                className="w-full h-12 rounded-none bg-foreground text-background hover:bg-foreground/90 font-medium"
               >
-                <RefreshCw size={18} className="mr-2" />
-                Try another link
+                Continue
               </Button>
-            </div>
-          )}
+            </form>
+          </Form>
+        )}
 
-          {/* Downloading Selected Quality Loading State */}
-          {createVideoDownload.isPending && (
-            <div className="py-12 flex flex-col items-center justify-center space-y-6 animate-in fade-in zoom-in duration-300">
-              <div className="relative">
-                <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-                <Loader2 size={48} className="text-primary animate-spin relative z-10" />
-              </div>
-              <div className="text-center space-y-2">
-                <h3 className="text-xl font-bold text-foreground">Extracting Magic</h3>
-                <p className="text-muted-foreground font-medium" data-testid="text-download-status">
-                  {retryNotice ?? `Fetching ${selectedLabel ?? "your selected quality"}...`}
+        {listVideoFormats.isPending && (
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <Loader2 size={16} className="animate-spin" />
+            Reading link...
+          </div>
+        )}
+
+        {showFormats && (
+          <div className="space-y-6">
+            <div className="aspect-video bg-muted overflow-hidden">
+              {formatsResult.thumbnailUrl ? (
+                <img src={formatsResult.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+              ) : null}
+            </div>
+
+            <div>
+              <p className="text-sm font-medium line-clamp-2">{formatsResult.title || "Untitled"}</p>
+              {formatsResult.durationSeconds != null && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formatDuration(formatsResult.durationSeconds)}
                 </p>
-              </div>
+              )}
             </div>
-          )}
 
-          {/* Success State */}
-          {videoResult && (
-            <div className="space-y-6 animate-in slide-in-from-bottom-4 fade-in duration-500" data-testid="result-container">
-              
-              <div className="aspect-video bg-black rounded-2xl overflow-hidden relative shadow-inner group">
-                {videoResult.thumbnailUrl ? (
-                  <img 
-                    src={videoResult.thumbnailUrl} 
-                    alt="Video thumbnail" 
-                    className="w-full h-full object-cover opacity-80"
-                    data-testid="img-thumbnail"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-secondary">
-                    <PlayCircle size={64} className="text-muted-foreground/50" />
-                  </div>
-                )}
-                
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
-                
-                <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 space-y-2 pointer-events-none">
-                  <h3 className="text-white font-bold text-lg sm:text-xl line-clamp-2 leading-tight" data-testid="text-video-title">
-                    {videoResult.title || "Untitled Post"}
-                  </h3>
-                  
-                  <div className="flex items-center gap-3 text-white/80 text-sm font-medium">
-                    {videoResult.durationSeconds != null && (
-                      <span className="bg-white/20 px-2 py-1 rounded-md backdrop-blur-sm" data-testid="text-duration">
-                        {formatDuration(videoResult.durationSeconds)}
-                      </span>
-                    )}
-                    {videoResult.fileSizeBytes != null && (
-                      <span className="bg-white/20 px-2 py-1 rounded-md backdrop-blur-sm" data-testid="text-size">
-                        {formatBytes(videoResult.fileSizeBytes)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3">
+            <div className="space-y-1">
+              {formatsResult.formats.map((format) => (
                 <button
+                  key={format.formatId}
                   type="button"
-                  onClick={downloadVideo}
-                  className="flex-1 inline-flex items-center justify-center gap-2 h-16 bg-primary text-primary-foreground text-xl font-bold rounded-2xl shadow-lg shadow-primary/20 hover:bg-primary/90 active:scale-[0.98] transition-all"
-                  data-testid="link-download"
+                  onClick={() => chooseFormat(format)}
+                  className="w-full flex items-center justify-between py-3 text-left text-sm border-b border-border hover:pl-1 transition-all"
                 >
-                  <Download size={24} strokeWidth={2.5} />
-                  Save to Device
+                  <span className="font-medium">{format.label}</span>
+                  {format.fileSizeBytes != null && (
+                    <span className="text-xs text-muted-foreground">
+                      {formatBytes(format.fileSizeBytes)}
+                    </span>
+                  )}
                 </button>
-                <Button 
-                  type="button"
-                  variant="secondary" 
-                  onClick={resetForm}
-                  className="h-16 px-6 text-lg font-bold rounded-2xl sm:flex-none active:scale-[0.98] transition-transform"
-                  data-testid="button-reset"
-                >
-                  <RefreshCw size={20} className="mr-2" />
-                  New
-                </Button>
-              </div>
-              
-              <p className="text-center text-sm text-muted-foreground font-medium px-4">
-                On iPhone? The video will be saved directly to your Downloads folder.
+              ))}
+            </div>
+
+            {createVideoDownload.isError && (
+              <p className="text-xs text-muted-foreground">{downloadError}</p>
+            )}
+
+            <button
+              type="button"
+              onClick={resetForm}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
+            >
+              <ArrowLeft size={12} />
+              Try another link
+            </button>
+          </div>
+        )}
+
+        {createVideoDownload.isPending && (
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <Loader2 size={16} className="animate-spin" />
+            Fetching {selectedLabel ?? "video"}...
+          </div>
+        )}
+
+        {videoResult && (
+          <div className="space-y-6">
+            <div className="aspect-video bg-muted overflow-hidden">
+              {videoResult.thumbnailUrl ? (
+                <img src={videoResult.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+              ) : null}
+            </div>
+
+            <div>
+              <p className="text-sm font-medium line-clamp-2">{videoResult.title || "Untitled"}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {videoResult.durationSeconds != null && formatDuration(videoResult.durationSeconds)}
+                {videoResult.durationSeconds != null && videoResult.fileSizeBytes != null && " · "}
+                {videoResult.fileSizeBytes != null && formatBytes(videoResult.fileSizeBytes)}
               </p>
             </div>
-          )}
-        </div>
-        
-        {/* Footer info */}
-        <div className="text-center text-sm font-medium text-muted-foreground/60">
-          Downloads are processed server-side. No weird popups.
-        </div>
+
+            <button
+              type="button"
+              onClick={downloadVideo}
+              className="w-full h-12 bg-foreground text-background font-medium inline-flex items-center justify-center gap-2 hover:bg-foreground/90 transition-colors"
+            >
+              <Download size={16} />
+              Save
+            </button>
+
+            <button
+              type="button"
+              onClick={resetForm}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
+            >
+              <ArrowLeft size={12} />
+              New download
+            </button>
+          </div>
+        )}
+
       </div>
     </div>
   );
