@@ -218,6 +218,16 @@ export default function Home() {
     return `/api${path}`;
   };
 
+  function downloadVideo() {
+    if (!videoResult?.downloadUrl) return;
+    const a = document.createElement("a");
+    a.href = getDownloadHref(videoResult.downloadUrl);
+    a.download = "video.mp4";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
   const isFormatsError = listVideoFormats.isError;
   const formatsErrorMessage = (listVideoFormats.error as any)?.error || "Failed to extract video. It might be private, deleted, or unsupported.";
 
@@ -469,14 +479,15 @@ export default function Home() {
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
-                <a 
-                  href={getDownloadHref(videoResult.downloadUrl)} 
+                <button
+                  type="button"
+                  onClick={downloadVideo}
                   className="flex-1 inline-flex items-center justify-center gap-2 h-16 bg-primary text-primary-foreground text-xl font-bold rounded-2xl shadow-lg shadow-primary/20 hover:bg-primary/90 active:scale-[0.98] transition-all"
                   data-testid="link-download"
                 >
                   <Download size={24} strokeWidth={2.5} />
                   Save to Device
-                </a>
+                </button>
                 <Button 
                   type="button"
                   variant="secondary" 
